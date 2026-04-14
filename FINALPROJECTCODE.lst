@@ -1,0 +1,1388 @@
+GAMS 51.4.0  91cb996b Nov 10, 2025          WEX-WEI x86 64bit/MS Windows - 12/02/25 20:54:49 Page 1
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+C o m p i l a t i o n
+
+
+   1  Sets
+   2      p  "Plants"      / CHN, IND /
+   3      m  "Markets"     / EAST, WEST /
+   4      c  "Components"  / BAT, MOT, PCB, CHS /
+   5      s  "Suppliers"   / S1, S2 /
+   6      t  "Time period" / 1*12 /;
+   7   
+   8   
+   9  Table D(m,t) "Demand of market m in time t"
+  10         1   2   3   4   5   6   7   8   9   10  11  12
+  11  EAST  300 320 310 330 340 350 360 370 355 340 330 320
+  12  WEST  200 220 240 230 250 270 260 280 275 260 240 230 ;
+  13   
+  14  Table Cship(p,m) "Cost of shipment from plant p to market m"
+  15       EAST  WEST
+  16  CHN  110   120
+  17  IND  135   150 ;
+  18   
+  19  Parameter
+  20      Cap(p)           "Production capacity per plant p in a month"
+  21      Ccomp(c,s,p)     "Component c purchasing cost from supplier s to plant p"
+  22      Cprod(p)         "Cost of production for plant p"
+  23      a(c)             "Components needed per finished product"
+  24      h(p)             "Inventory holding cost per unit"
+  25      pen(m)           "Shortage penalty cost per unit"
+  26      Supply(c,s,p,t)  "Max monthly supply of component c"
+  27      tau_comp(c,s,p)  "Component tariff rate (supplier→plant)"
+  28      tau_fg(p)        "Finished good tariff rate (plant→US)"
+  29      Eship(p,m)       "CO2 emission per shipment"
+  30      Eprod(p)         "CO2 emission per production"
+  31      MakeCost(p)      "Base making cost for tariff calculation";
+  32   
+  33  Cap("CHN") = 600;
+  34  Cap("IND") = 400;
+  35   
+  36  Cprod("CHN") = 425;
+  37  Cprod("IND") = 550;
+  38   
+  39  Ccomp("BAT","S1","CHN") = 80;   Ccomp("BAT","S2","CHN") = 90;
+  40  Ccomp("BAT","S1","IND") = 70;   Ccomp("BAT","S2","IND") = 65;
+  41   
+  42  Ccomp("MOT","S1","CHN") = 60;   Ccomp("MOT","S2","CHN") = 55;
+  43  Ccomp("MOT","S1","IND") = 55;   Ccomp("MOT","S2","IND") = 58;
+  44   
+  45  Ccomp("PCB","S1","CHN") = 30;   Ccomp("PCB","S2","CHN") = 29;
+  46  Ccomp("PCB","S1","IND") = 28;   Ccomp("PCB","S2","IND") = 32;
+  47   
+  48  Ccomp("CHS","S1","CHN") = 40;   Ccomp("CHS","S2","CHN") = 45;
+  49  Ccomp("CHS","S1","IND") = 38;   Ccomp("CHS","S2","IND") = 36;
+  50   
+  51  a("BAT") = 1;
+  52  a("MOT") = 1;
+  53  a("PCB") = 2;
+  54  a("CHS") = 1;
+  55   
+  56  MakeCost(p) = Cprod(p) + SUM((c,s), Ccomp(c,s,p));
+  57   
+  58  h("CHN") = 5;
+  59  h("IND") = 5;
+  60   
+  61  pen("EAST") = 5000;
+  62  pen("WEST") = 5000;
+  63   
+  64  Loop(t,
+  65      Supply("BAT","S1","CHN",t) = 300;
+  66      Supply("BAT","S2","CHN",t) = 400;
+  67      Supply("BAT","S1","IND",t) = 150;
+  68      Supply("BAT","S2","IND",t) = 100;
+  69   
+  70      Supply("MOT","S1","CHN",t) = 500;
+  71      Supply("MOT","S2","CHN",t) = 400;
+  72      Supply("MOT","S1","IND",t) = 400;
+  73      Supply("MOT","S2","IND",t) = 350;
+  74   
+  75      Supply("PCB","S1","CHN",t) = 600;
+  76      Supply("PCB","S2","CHN",t) = 600;
+  77      Supply("PCB","S1","IND",t) = 150;
+  78      Supply("PCB","S2","IND",t) = 100;
+  79   
+  80      Supply("CHS","S1","CHN",t) = 600;
+  81      Supply("CHS","S2","CHN",t) = 600;
+  82      Supply("CHS","S1","IND",t) = 200;
+  83      Supply("CHS","S2","IND",t) = 300;
+  84  );
+  85   
+  86  *-------------------------------------------------*
+  87  * Supplier Disruption Scenario:
+  88  * India loses 40% of BAT supply in Months may, june & july
+  89  *-------------------------------------------------*
+  90   
+      Loop(t$(ord(t)>=5 and ord(t)<=7),
+          Supply("BAT","S1","CHN",t) = 0.6 * Supply("BAT","S1","CHN",t);
+          Supply("BAT","S2","CHN",t) = 0.6 * Supply("BAT","S2","CHN",t);
+          Supply("PCB","S1","CHN",t) = 0.3 * Supply("PCB","S1","CHN",t);
+          Supply("PCB","S2","CHN",t) = 0.3 * Supply("PCB","S2","CHN",t);
+      );
+  99   
+ 100  tau_comp("BAT","S1","CHN") = 0.12;
+ 101  tau_comp("BAT","S2","CHN") = 0.15;
+ 102  tau_comp("BAT","S1","IND") = 0.05;
+ 103  tau_comp("BAT","S2","IND") = 0.03;
+ 104   
+ 105  tau_comp("MOT","S1","CHN") = 0.10;
+ 106  tau_comp("MOT","S2","CHN") = 0.075;
+ 107  tau_comp("MOT","S1","IND") = 0.04;
+ 108  tau_comp("MOT","S2","IND") = 0.06;
+ 109   
+ 110  tau_comp("PCB","S1","CHN") = 0.08;
+ 111  tau_comp("PCB","S2","CHN") = 0.10;
+ 112  tau_comp("PCB","S1","IND") = 0.03;
+ 113  tau_comp("PCB","S2","IND") = 0.05;
+ 114   
+ 115  tau_comp("CHS","S1","CHN") = 0.09;
+ 116  tau_comp("CHS","S2","CHN") = 0.12;
+ 117  tau_comp("CHS","S1","IND") = 0.04;
+ 118  tau_comp("CHS","S2","IND") = 0.06;
+ 119   
+ 120  tau_fg("CHN") = 0.25;
+ 121  tau_fg("IND") = 0.10;
+ 122   
+ 123  *---------------------------------------------------------------*
+ 124  * EMISSIONS
+ 125  *---------------------------------------------------------------*
+ 126   
+ 127  Eship("CHN","EAST") = 0.25;  Eship("CHN","WEST") = 0.20;
+ 128  Eship("IND","EAST") = 0.15;  Eship("IND","WEST") = 0.12;
+ 129   
+ 130  Eprod("CHN") = 0.30;
+ 131  Eprod("IND") = 0.25;
+ 132   
+ 133   
+ 134  Scalar
+ 135      Emax "Annual emission limit" /4000/
+ 136      CO   "Carbon price per ton of CO2" /20/;
+ 137   
+ 138   
+ 139   
+ 140  *===============================================================*
+ 141  *                     DECISION VARIABLES
+ 142  *===============================================================*
+ 143  Variables
+ 144      q(p,t) "Units produced"
+ 145      x(p,m,t) "Units shipped"
+ 146      y(c,s,p,t) "Components purchased"
+ 147      I(p,t) "Inventory"
+ 148      B(m,t) "Unmet demand"
+ 149      z      "Total cost";
+ 150   
+ 151  Positive Variables q, x, y, I, B;
+ 152   
+ 153  Equations
+ 154      DemandSatisfaction(m,t)   "Demand constraints"
+ 155      InitialBacklog(m)         "Initial backlog"
+ 156      ClearBacklog(m)           "clear backlogs"
+ 157      InventoryBalance1(p)      "Opening inventory"
+ 158      InventoryBalance(p,t)     "Inventory flow"
+ 159      PlantCap(p,t)             "Production capacity"
+ 160      SupplierAvail(c,s,p,t)    "Supplier limits"
+ 161      ComponentRequirement(c,p,t) "BOM requirements"
+ 162      Sustainability            "Emission cap"
+ 163      Objective                 "Total cost minimization";
+ 164   
+ 165   
+ 166  Objective..
+ 167      z =e= SUM(t,
+ 168              SUM(p,       Cprod(p)      * q(p,t))
+ 169            + SUM((p,m),   Cship(p,m)    * x(p,m,t))
+ 170            + SUM((p,c,s), Ccomp(c,s,p)  * y(c,s,p,t))
+ 171            + SUM(p,       h(p)          * I(p,t))
+ 172            + SUM(m,       pen(m)        * B(m,t))
+ 173            + SUM((p,m),   tau_fg(p)      * MakeCost(p) * x(p,m,t))
+ 174            + SUM((c,s,p), tau_comp(c,s,p) * Ccomp(c,s,p) * y(c,s,p,t))
+ 175            )
+ 176            + CO * ( SUM((p,m,t), Eship(p,m)*x(p,m,t))
+ 177                   + SUM((p,t),   Eprod(p)   *q(p,t))
+ 178                  );
+ 179  * Rolling Backlog Demand Constraint
+ 180  DemandSatisfaction(m,t)..
+ 181      SUM(p, x(p,m,t)) + B(m,t) =e= D(m,t) + (B(m,t-1)$(ord(t)>1));
+ 182   
+ 183  InitialBacklog(m)..
+ 184      B(m,'1') =e= 0;
+ 185   
+ 186  ClearBacklog(m)..
+ 187      B(m,'12') =e= 0;
+ 188   
+ 189  InventoryBalance1(p)..
+ 190      I(p,'1') =e= q(p,'1') - SUM(m, x(p,m,'1'));
+ 191   
+ 192  InventoryBalance(p,t)$(ord(t) > 1)..
+ 193      I(p,t) =e= I(p,t-1) + q(p,t) - SUM(m, x(p,m,t));
+ 194   
+ 195  PlantCap(p,t).. q(p,t) =l= Cap(p);
+ 196   
+ 197  ComponentRequirement(c,p,t)..
+ 198      SUM(s, y(c,s,p,t)) =e= a(c) * q(p,t);
+ 199   
+ 200  SupplierAvail(c,s,p,t)..
+ 201      y(c,s,p,t) =l= Supply(c,s,p,t);
+ 202   
+ 203  Sustainability..
+ 204      SUM((p,m,t), Eship(p,m) * x(p,m,t))
+ 205    + SUM((p,t),   Eprod(p)   * q(p,t))
+ 206    =l= Emax;
+ 207   
+ 208  Model Project /all/;
+ 209  Solve Project using lp minimizing z;
+ 210   
+ 211  Display z.l, q.l, x.l, I.l, B.l, y.l;
+ 212   
+ 213   
+ 214   
+ 215   
+      Set tauCHNset /t1*t5/;
+      Set tauINDset /u1*u4/;
+       
+      Parameter tauCHNval(tauCHNset), tauINDval(tauINDset);
+       
+      tauCHNval("t1") = 0.10;
+      tauCHNval("t2") = 0.15;
+      tauCHNval("t3") = 0.20;
+      tauCHNval("t4") = 0.25;
+      tauCHNval("t5") = 0.30;
+       
+      tauINDval("u1") = 0.05;
+      tauINDval("u2") = 0.10;
+      tauINDval("u3") = 0.15;
+      tauINDval("u4") = 0.20;
+       
+      Table TariffResults(tauCHNset, tauINDset) "Total cost";
+      TariffResults(tauCHNset, tauINDset) = 0;
+       
+      Loop(tauCHNset,
+          Loop(tauINDset,
+       
+              tau_fg("CHN") = tauCHNval(tauCHNset);
+              tau_fg("IND") = tauINDval(tauINDset);
+       
+              Solve Project using lp minimizing z;
+       
+              TariffResults(tauCHNset, tauINDset) = z.l;
+       
+          );
+      );
+       
+      Display TariffResults;
+       
+
+
+COMPILATION TIME     =        0.000 SECONDS      3 MB  51.4.0 91cb996b WEX-WEI
+GAMS 51.4.0  91cb996b Nov 10, 2025          WEX-WEI x86 64bit/MS Windows - 12/02/25 20:54:49 Page 2
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+Equation Listing    SOLVE Project Using LP From line 209
+
+
+---- DemandSatisfaction  =E=  Demand constraints
+
+DemandSatisfaction(EAST,1)..  x(CHN,EAST,1) + x(IND,EAST,1) + B(EAST,1) =E= 300 ; (LHS = 0, INFES = 300 ****)
+     
+DemandSatisfaction(EAST,2)..  x(CHN,EAST,2) + x(IND,EAST,2) - B(EAST,1) + B(EAST,2) =E= 320 ; (LHS = 0, INFES = 320 ****)
+     
+DemandSatisfaction(EAST,3)..  x(CHN,EAST,3) + x(IND,EAST,3) - B(EAST,2) + B(EAST,3) =E= 310 ; (LHS = 0, INFES = 310 ****)
+     
+REMAINING 21 ENTRIES SKIPPED
+
+
+---- InitialBacklog  =E=  Initial backlog
+
+InitialBacklog(EAST)..  B(EAST,1) =E= 0 ; (LHS = 0)
+     
+InitialBacklog(WEST)..  B(WEST,1) =E= 0 ; (LHS = 0)
+     
+
+---- ClearBacklog  =E=  clear backlogs
+
+ClearBacklog(EAST)..  B(EAST,12) =E= 0 ; (LHS = 0)
+     
+ClearBacklog(WEST)..  B(WEST,12) =E= 0 ; (LHS = 0)
+     
+
+---- InventoryBalance1  =E=  Opening inventory
+
+InventoryBalance1(CHN)..  - q(CHN,1) + x(CHN,EAST,1) + x(CHN,WEST,1) + I(CHN,1) =E= 0 ; (LHS = 0)
+     
+InventoryBalance1(IND)..  - q(IND,1) + x(IND,EAST,1) + x(IND,WEST,1) + I(IND,1) =E= 0 ; (LHS = 0)
+     
+
+---- InventoryBalance  =E=  Inventory flow
+
+InventoryBalance(CHN,2)..  - q(CHN,2) + x(CHN,EAST,2) + x(CHN,WEST,2) - I(CHN,1) + I(CHN,2) =E= 0 ; (LHS = 0)
+     
+InventoryBalance(CHN,3)..  - q(CHN,3) + x(CHN,EAST,3) + x(CHN,WEST,3) - I(CHN,2) + I(CHN,3) =E= 0 ; (LHS = 0)
+     
+InventoryBalance(CHN,4)..  - q(CHN,4) + x(CHN,EAST,4) + x(CHN,WEST,4) - I(CHN,3) + I(CHN,4) =E= 0 ; (LHS = 0)
+     
+REMAINING 19 ENTRIES SKIPPED
+
+
+---- PlantCap  =L=  Production capacity
+
+PlantCap(CHN,1)..  q(CHN,1) =L= 600 ; (LHS = 0)
+     
+PlantCap(CHN,2)..  q(CHN,2) =L= 600 ; (LHS = 0)
+     
+PlantCap(CHN,3)..  q(CHN,3) =L= 600 ; (LHS = 0)
+     
+REMAINING 21 ENTRIES SKIPPED
+
+
+---- SupplierAvail  =L=  Supplier limits
+
+SupplierAvail(BAT,S1,CHN,1)..  y(BAT,S1,CHN,1) =L= 300 ; (LHS = 0)
+     
+SupplierAvail(BAT,S1,CHN,2)..  y(BAT,S1,CHN,2) =L= 300 ; (LHS = 0)
+     
+SupplierAvail(BAT,S1,CHN,3)..  y(BAT,S1,CHN,3) =L= 300 ; (LHS = 0)
+     
+REMAINING 189 ENTRIES SKIPPED
+
+
+---- ComponentRequirement  =E=  BOM requirements
+
+ComponentRequirement(BAT,CHN,1)..  - q(CHN,1) + y(BAT,S1,CHN,1) + y(BAT,S2,CHN,1) =E= 0 ; (LHS = 0)
+     
+ComponentRequirement(BAT,CHN,2)..  - q(CHN,2) + y(BAT,S1,CHN,2) + y(BAT,S2,CHN,2) =E= 0 ; (LHS = 0)
+     
+ComponentRequirement(BAT,CHN,3)..  - q(CHN,3) + y(BAT,S1,CHN,3) + y(BAT,S2,CHN,3) =E= 0 ; (LHS = 0)
+     
+REMAINING 93 ENTRIES SKIPPED
+
+
+---- Sustainability  =L=  Emission cap
+
+Sustainability..  0.3*q(CHN,1) + 0.3*q(CHN,2) + 0.3*q(CHN,3) + 0.3*q(CHN,4) + 0.3*q(CHN,5) + 0.3*q(CHN,6) + 0.3*q(CHN,7) + 0.3*q(CHN,8) + 0.3*q(CHN,9) + 0.3*q(CHN,10) + 0.3*q(CHN,11) + 0.3*q(CHN,12) + 0.25*q(IND,1) + 0.25*q(IND,2) + 0.25*q(IND,3) + 0.25*q(IND,4) + 0.25*q(IND,5) + 0.25*q(IND,6) + 0.25*q(IND,7) + 0.25*q(IND,8) + 0.25*q(IND,9) + 0.25*q(IND,10) + 0.25*q(IND,11) + 0.25*q(IND,12) + 0.25*x(CHN,EAST,1) + 0.25*x(CHN,EAST,2) + 0.25*x(CHN,EAST,3) + 0.25*x(CHN,EAST,4) + 0.25*x(CHN,EAST,5) + 0.25*x(CHN,EAST,6) + 0.25*x(CHN,EAST,7) + 0.25*x(CHN,EAST,8) + 0.25*x(CHN,EAST,9) + 0.25*x(CHN,EAST,10) + 0.25*x(CHN,EAST,11) + 0.25*x(CHN,EAST,12) + 0.2*x(CHN,WEST,1) + 0.2*x(CHN,WEST,2) + 0.2*x(CHN,WEST,3) + 0.2*x(CHN,WEST,4) + 0.2*x(CHN,WEST,5) + 0.2*x(CHN,WEST,6) + 0.2*x(CHN,WEST,7) + 0.2*x(CHN,WEST,8) + 0.2*x(CHN,WEST,9) + 0.2*x(CHN,WEST,10) + 0.2*x(CHN,WEST,11) + 0.2*x(CHN,WEST,12) + 0.15*x(IND,EAST,1) + 0.15*x(IND,EAST,2) + 0.15*x(IND,EAST,3) + 0.15*x(IND,EAST,4) + 0.15*x(IND,EAST,5) + 0.15*x(IND,EAST,6) + 0.15*x(IND,EAST,7) + 0.15*x(IND,EAST,8) + 0.15*x(IND,EAST,9) + 0.15*x(IND,EAST,10) + 0.15*x(IND,EAST,11) + 0.15*x(IND,EAST,12) + 0.12*x(IND,WEST,1) + 0.12*x(IND,WEST,2) + 0.12*x(IND,WEST,3) + 0.12*x(IND,WEST,4) + 0.12*x(IND,WEST,5) + 0.12*x(IND,WEST,6) + 0.12*x(IND,WEST,7) + 0.12*x(IND,WEST,8) + 0.12*x(IND,WEST,9) + 0.12*x(IND,WEST,10) + 0.12*x(IND,WEST,11) + 0.12*x(IND,WEST,12) =L= 4000 ; (LHS = 0)
+     
+
+---- Objective  =E=  Total cost minimization
+
+Objective..  - 431*q(CHN,1) - 431*q(CHN,2) - 431*q(CHN,3) - 431*q(CHN,4) - 431*q(CHN,5) - 431*q(CHN,6) - 431*q(CHN,7) - 431*q(CHN,8) - 431*q(CHN,9) - 431*q(CHN,10) - 431*q(CHN,11) - 431*q(CHN,12) - 555*q(IND,1) - 555*q(IND,2) - 555*q(IND,3) - 555*q(IND,4) - 555*q(IND,5) - 555*q(IND,6) - 555*q(IND,7) - 555*q(IND,8) - 555*q(IND,9) - 555*q(IND,10) - 555*q(IND,11) - 555*q(IND,12) - 328.5*x(CHN,EAST,1) - 328.5*x(CHN,EAST,2) - 328.5*x(CHN,EAST,3) - 328.5*x(CHN,EAST,4) - 328.5*x(CHN,EAST,5) - 328.5*x(CHN,EAST,6) - 328.5*x(CHN,EAST,7) - 328.5*x(CHN,EAST,8) - 328.5*x(CHN,EAST,9) - 328.5*x(CHN,EAST,10) - 328.5*x(CHN,EAST,11) - 328.5*x(CHN,EAST,12) - 337.5*x(CHN,WEST,1) - 337.5*x(CHN,WEST,2) - 337.5*x(CHN,WEST,3) - 337.5*x(CHN,WEST,4) - 337.5*x(CHN,WEST,5) - 337.5*x(CHN,WEST,6) - 337.5*x(CHN,WEST,7) - 337.5*x(CHN,WEST,8) - 337.5*x(CHN,WEST,9) - 337.5*x(CHN,WEST,10) - 337.5*x(CHN,WEST,11) - 337.5*x(CHN,WEST,12) - 231.2*x(IND,EAST,1) - 231.2*x(IND,EAST,2) - 231.2*x(IND,EAST,3) - 231.2*x(IND,EAST,4) - 231.2*x(IND,EAST,5) - 231.2*x(IND,EAST,6) - 231.2*x(IND,EAST,7) - 231.2*x(IND,EAST,8) - 231.2*x(IND,EAST,9) - 231.2*x(IND,EAST,10) - 231.2*x(IND,EAST,11) - 231.2*x(IND,EAST,12) - 245.6*x(IND,WEST,1) - 245.6*x(IND,WEST,2) - 245.6*x(IND,WEST,3) - 245.6*x(IND,WEST,4) - 245.6*x(IND,WEST,5) - 245.6*x(IND,WEST,6) - 245.6*x(IND,WEST,7) - 245.6*x(IND,WEST,8) - 245.6*x(IND,WEST,9) - 245.6*x(IND,WEST,10) - 245.6*x(IND,WEST,11) - 245.6*x(IND,WEST,12) - 89.6*y(BAT,S1,CHN,1) - 89.6*y(BAT,S1,CHN,2) - 89.6*y(BAT,S1,CHN,3) - 89.6*y(BAT,S1,CHN,4) - 89.6*y(BAT,S1,CHN,5) - 89.6*y(BAT,S1,CHN,6) - 89.6*y(BAT,S1,CHN,7) - 89.6*y(BAT,S1,CHN,8) - 89.6*y(BAT,S1,CHN,9) - 89.6*y(BAT,S1,CHN,10) - 89.6*y(BAT,S1,CHN,11) - 89.6*y(BAT,S1,CHN,12) - 73.5*y(BAT,S1,IND,1) - 73.5*y(BAT,S1,IND,2) - 73.5*y(BAT,S1,IND,3) - 73.5*y(BAT,S1,IND,4) - 73.5*y(BAT,S1,IND,5) - 73.5*y(BAT,S1,IND,6) - 73.5*y(BAT,S1,IND,7) - 73.5*y(BAT,S1,IND,8) - 73.5*y(BAT,S1,IND,9) - 73.5*y(BAT,S1,IND,10) - 73.5*y(BAT,S1,IND,11) - 73.5*y(BAT,S1,IND,12) - 103.5*y(BAT,S2,CHN,1) - 103.5*y(BAT,S2,CHN,2) - 103.5*y(BAT,S2,CHN,3) - 103.5*y(BAT,S2,CHN,4) - 103.5*y(BAT,S2,CHN,5) - 103.5*y(BAT,S2,CHN,6) - 103.5*y(BAT,S2,CHN,7) - 103.5*y(BAT,S2,CHN,8) - 103.5*y(BAT,S2,CHN,9) - 103.5*y(BAT,S2,CHN,10) - 103.5*y(BAT,S2,CHN,11) - 103.5*y(BAT,S2,CHN,12) - 66.95*y(BAT,S2,IND,1) - 66.95*y(BAT,S2,IND,2) - 66.95*y(BAT,S2,IND,3) - 66.95*y(BAT,S2,IND,4) - 66.95*y(BAT,S2,IND,5) - 66.95*y(BAT,S2,IND,6) - 66.95*y(BAT,S2,IND,7) - 66.95*y(BAT,S2,IND,8) - 66.95*y(BAT,S2,IND,9) - 66.95*y(BAT,S2,IND,10) - 66.95*y(BAT,S2,IND,11) - 66.95*y(BAT,S2,IND,12) - 66*y(MOT,S1,CHN,1) - 66*y(MOT,S1,CHN,2) - 66*y(MOT,S1,CHN,3) - 66*y(MOT,S1,CHN,4) - 66*y(MOT,S1,CHN,5) - 66*y(MOT,S1,CHN,6) - 66*y(MOT,S1,CHN,7) - 66*y(MOT,S1,CHN,8) - 66*y(MOT,S1,CHN,9) - 66*y(MOT,S1,CHN,10) - 66*y(MOT,S1,CHN,11) - 66*y(MOT,S1,CHN,12) - 57.2*y(MOT,S1,IND,1) - 57.2*y(MOT,S1,IND,2) - 57.2*y(MOT,S1,IND,3) - 57.2*y(MOT,S1,IND,4) - 57.2*y(MOT,S1,IND,5) - 57.2*y(MOT,S1,IND,6) - 57.2*y(MOT,S1,IND,7) - 57.2*y(MOT,S1,IND,8) - 57.2*y(MOT,S1,IND,9) - 57.2*y(MOT,S1,IND,10) - 57.2*y(MOT,S1,IND,11) - 57.2*y(MOT,S1,IND,12) - 59.125*y(MOT,S2,CHN,1) - 59.125*y(MOT,S2,CHN,2) - 59.125*y(MOT,S2,CHN,3) - 59.125*y(MOT,S2,CHN,4) - 59.125*y(MOT,S2,CHN,5) - 59.125*y(MOT,S2,CHN,6) - 59.125*y(MOT,S2,CHN,7) - 59.125*y(MOT,S2,CHN,8) - 59.125*y(MOT,S2,CHN,9) - 59.125*y(MOT,S2,CHN,10) - 59.125*y(MOT,S2,CHN,11) - 59.125*y(MOT,S2,CHN,12) - 61.48*y(MOT,S2,IND,1) - 61.48*y(MOT,S2,IND,2) - 61.48*y(MOT,S2,IND,3) - 61.48*y(MOT,S2,IND,4) - 61.48*y(MOT,S2,IND,5) - 61.48*y(MOT,S2,IND,6) - 61.48*y(MOT,S2,IND,7) - 61.48*y(MOT,S2,IND,8) - 61.48*y(MOT,S2,IND,9) - 61.48*y(MOT,S2,IND,10) - 61.48*y(MOT,S2,IND,11) - 61.48*y(MOT,S2,IND,12) - 32.4*y(PCB,S1,CHN,1) - 32.4*y(PCB,S1,CHN,2) - 32.4*y(PCB,S1,CHN,3) - 32.4*y(PCB,S1,CHN,4) - 32.4*y(PCB,S1,CHN,5) - 32.4*y(PCB,S1,CHN,6) - 32.4*y(PCB,S1,CHN,7) - 32.4*y(PCB,S1,CHN,8) - 32.4*y(PCB,S1,CHN,9) - 32.4*y(PCB,S1,CHN,10) - 32.4*y(PCB,S1,CHN,11) - 32.4*y(PCB,S1,CHN,12) - 28.84*y(PCB,S1,IND,1) - 28.84*y(PCB,S1,IND,2) - 28.84*y(PCB,S1,IND,3) - 28.84*y(PCB,S1,IND,4) - 28.84*y(PCB,S1,IND,5) - 28.84*y(PCB,S1,IND,6) - 28.84*y(PCB,S1,IND,7) - 28.84*y(PCB,S1,IND,8) - 28.84*y(PCB,S1,IND,9) - 28.84*y(PCB,S1,IND,10) - 28.84*y(PCB,S1,IND,11) - 28.84*y(PCB,S1,IND,12) - 31.9*y(PCB,S2,CHN,1) - 31.9*y(PCB,S2,CHN,2) - 31.9*y(PCB,S2,CHN,3) - 31.9*y(PCB,S2,CHN,4) - 31.9*y(PCB,S2,CHN,5) - 31.9*y(PCB,S2,CHN,6) - 31.9*y(PCB,S2,CHN,7) - 31.9*y(PCB,S2,CHN,8) - 31.9*y(PCB,S2,CHN,9) - 31.9*y(PCB,S2,CHN,10) - 31.9*y(PCB,S2,CHN,11) - 31.9*y(PCB,S2,CHN,12) - 33.6*y(PCB,S2,IND,1) - 33.6*y(PCB,S2,IND,2) - 33.6*y(PCB,S2,IND,3) - 33.6*y(PCB,S2,IND,4) - 33.6*y(PCB,S2,IND,5) - 33.6*y(PCB,S2,IND,6) - 33.6*y(PCB,S2,IND,7) - 33.6*y(PCB,S2,IND,8) - 33.6*y(PCB,S2,IND,9) - 33.6*y(PCB,S2,IND,10) - 33.6*y(PCB,S2,IND,11) - 33.6*y(PCB,S2,IND,12) - 43.6*y(CHS,S1,CHN,1) - 43.6*y(CHS,S1,CHN,2) - 43.6*y(CHS,S1,CHN,3) - 43.6*y(CHS,S1,CHN,4) - 43.6*y(CHS,S1,CHN,5) - 43.6*y(CHS,S1,CHN,6) - 43.6*y(CHS,S1,CHN,7) - 43.6*y(CHS,S1,CHN,8) - 43.6*y(CHS,S1,CHN,9) - 43.6*y(CHS,S1,CHN,10) - 43.6*y(CHS,S1,CHN,11) - 43.6*y(CHS,S1,CHN,12) - 39.52*y(CHS,S1,IND,1) - 39.52*y(CHS,S1,IND,2) - 39.52*y(CHS,S1,IND,3) - 39.52*y(CHS,S1,IND,4) - 39.52*y(CHS,S1,IND,5) - 39.52*y(CHS,S1,IND,6) - 39.52*y(CHS,S1,IND,7) - 39.52*y(CHS,S1,IND,8) - 39.52*y(CHS,S1,IND,9) - 39.52*y(CHS,S1,IND,10) - 39.52*y(CHS,S1,IND,11) - 39.52*y(CHS,S1,IND,12) - 50.4*y(CHS,S2,CHN,1) - 50.4*y(CHS,S2,CHN,2) - 50.4*y(CHS,S2,CHN,3) - 50.4*y(CHS,S2,CHN,4) - 50.4*y(CHS,S2,CHN,5) - 50.4*y(CHS,S2,CHN,6) - 50.4*y(CHS,S2,CHN,7) - 50.4*y(CHS,S2,CHN,8) - 50.4*y(CHS,S2,CHN,9) - 50.4*y(CHS,S2,CHN,10) - 50.4*y(CHS,S2,CHN,11) - 50.4*y(CHS,S2,CHN,12) - 38.16*y(CHS,S2,IND,1) - 38.16*y(CHS,S2,IND,2) - 38.16*y(CHS,S2,IND,3) - 38.16*y(CHS,S2,IND,4) - 38.16*y(CHS,S2,IND,5) - 38.16*y(CHS,S2,IND,6) - 38.16*y(CHS,S2,IND,7) - 38.16*y(CHS,S2,IND,8) - 38.16*y(CHS,S2,IND,9) - 38.16*y(CHS,S2,IND,10) - 38.16*y(CHS,S2,IND,11) - 38.16*y(CHS,S2,IND,12) - 5*I(CHN,1) - 5*I(CHN,2) - 5*I(CHN,3) - 5*I(CHN,4) - 5*I(CHN,5) - 5*I(CHN,6) - 5*I(CHN,7) - 5*I(CHN,8) - 5*I(CHN,9) - 5*I(CHN,10) - 5*I(CHN,11) - 5*I(CHN,12) - 5*I(IND,1) - 5*I(IND,2) - 5*I(IND,3) - 5*I(IND,4) - 5*I(IND,5) - 5*I(IND,6) - 5*I(IND,7) - 5*I(IND,8) - 5*I(IND,9) - 5*I(IND,10) - 5*I(IND,11) - 5*I(IND,12) - 5000*B(EAST,1) - 5000*B(EAST,2) - 5000*B(EAST,3) - 5000*B(EAST,4) - 5000*B(EAST,5) - 5000*B(EAST,6) - 5000*B(EAST,7) - 5000*B(EAST,8) - 5000*B(EAST,9) - 5000*B(EAST,10) - 5000*B(EAST,11) - 5000*B(EAST,12) - 5000*B(WEST,1) - 5000*B(WEST,2) - 5000*B(WEST,3) - 5000*B(WEST,4) - 5000*B(WEST,5) - 5000*B(WEST,6) - 5000*B(WEST,7) - 5000*B(WEST,8) - 5000*B(WEST,9) - 5000*B(WEST,10) - 5000*B(WEST,11) - 5000*B(WEST,12) + z =E= 0 ; (LHS = 0)
+     
+GAMS 51.4.0  91cb996b Nov 10, 2025          WEX-WEI x86 64bit/MS Windows - 12/02/25 20:54:49 Page 3
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+Column Listing      SOLVE Project Using LP From line 209
+
+
+---- q  Units produced
+
+q(CHN,1)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+       -1       InventoryBalance1(CHN)
+        1       PlantCap(CHN,1)
+       -1       ComponentRequirement(BAT,CHN,1)
+       -1       ComponentRequirement(MOT,CHN,1)
+       -2       ComponentRequirement(PCB,CHN,1)
+       -1       ComponentRequirement(CHS,CHN,1)
+        0.3     Sustainability
+     -431       Objective
+
+q(CHN,2)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+       -1       InventoryBalance(CHN,2)
+        1       PlantCap(CHN,2)
+       -1       ComponentRequirement(BAT,CHN,2)
+       -1       ComponentRequirement(MOT,CHN,2)
+       -2       ComponentRequirement(PCB,CHN,2)
+       -1       ComponentRequirement(CHS,CHN,2)
+        0.3     Sustainability
+     -431       Objective
+
+q(CHN,3)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+       -1       InventoryBalance(CHN,3)
+        1       PlantCap(CHN,3)
+       -1       ComponentRequirement(BAT,CHN,3)
+       -1       ComponentRequirement(MOT,CHN,3)
+       -2       ComponentRequirement(PCB,CHN,3)
+       -1       ComponentRequirement(CHS,CHN,3)
+        0.3     Sustainability
+     -431       Objective
+
+REMAINING 21 ENTRIES SKIPPED
+
+---- x  Units shipped
+
+x(CHN,EAST,1)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+        1       DemandSatisfaction(EAST,1)
+        1       InventoryBalance1(CHN)
+        0.25    Sustainability
+     -328.5     Objective
+
+x(CHN,EAST,2)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+        1       DemandSatisfaction(EAST,2)
+        1       InventoryBalance(CHN,2)
+        0.25    Sustainability
+     -328.5     Objective
+
+x(CHN,EAST,3)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+        1       DemandSatisfaction(EAST,3)
+        1       InventoryBalance(CHN,3)
+        0.25    Sustainability
+     -328.5     Objective
+
+REMAINING 45 ENTRIES SKIPPED
+
+---- y  Components purchased
+
+y(BAT,S1,CHN,1)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+        1       SupplierAvail(BAT,S1,CHN,1)
+        1       ComponentRequirement(BAT,CHN,1)
+      -89.6     Objective
+
+y(BAT,S1,CHN,2)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+        1       SupplierAvail(BAT,S1,CHN,2)
+        1       ComponentRequirement(BAT,CHN,2)
+      -89.6     Objective
+
+y(BAT,S1,CHN,3)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+        1       SupplierAvail(BAT,S1,CHN,3)
+        1       ComponentRequirement(BAT,CHN,3)
+      -89.6     Objective
+
+REMAINING 189 ENTRIES SKIPPED
+
+---- I  Inventory
+
+I(CHN,1)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+        1       InventoryBalance1(CHN)
+       -1       InventoryBalance(CHN,2)
+       -5       Objective
+
+I(CHN,2)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+        1       InventoryBalance(CHN,2)
+       -1       InventoryBalance(CHN,3)
+       -5       Objective
+
+I(CHN,3)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+        1       InventoryBalance(CHN,3)
+       -1       InventoryBalance(CHN,4)
+       -5       Objective
+
+REMAINING 21 ENTRIES SKIPPED
+
+---- B  Unmet demand
+
+B(EAST,1)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+        1       DemandSatisfaction(EAST,1)
+       -1       DemandSatisfaction(EAST,2)
+        1       InitialBacklog(EAST)
+    -5000       Objective
+
+B(EAST,2)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+        1       DemandSatisfaction(EAST,2)
+       -1       DemandSatisfaction(EAST,3)
+    -5000       Objective
+
+B(EAST,3)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+        1       DemandSatisfaction(EAST,3)
+       -1       DemandSatisfaction(EAST,4)
+    -5000       Objective
+
+REMAINING 21 ENTRIES SKIPPED
+
+---- z  Total cost
+
+z
+                (.LO, .L, .UP, .M = -INF, 0, +INF, 0)
+        1       Objective
+
+GAMS 51.4.0  91cb996b Nov 10, 2025          WEX-WEI x86 64bit/MS Windows - 12/02/25 20:54:49 Page 4
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+Range Statistics    SOLVE Project Using LP From line 209
+
+
+RANGE STATISTICS (ABSOLUTE NON-ZERO FINITE VALUES)
+
+RHS       [min, max] : [ 1.000E+02, 4.000E+03] - Zero values observed as well
+Bound     [min, max] : [        NA,        NA] - Zero values observed as well
+Matrix    [min, max] : [ 1.200E-01, 5.000E+03]
+
+GAMS 51.4.0  91cb996b Nov 10, 2025          WEX-WEI x86 64bit/MS Windows - 12/02/25 20:54:49 Page 5
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+Model Statistics    SOLVE Project Using LP From line 209
+
+
+MODEL STATISTICS
+
+BLOCKS OF EQUATIONS          10     SINGLE EQUATIONS          366
+BLOCKS OF VARIABLES           6     SINGLE VARIABLES          313
+NON ZERO ELEMENTS         1,105
+
+
+GENERATION TIME      =        0.016 SECONDS      4 MB  51.4.0 91cb996b WEX-WEI
+GAMS 51.4.0  91cb996b Nov 10, 2025          WEX-WEI x86 64bit/MS Windows - 12/02/25 20:54:49 Page 6
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+Solution Report     SOLVE Project Using LP From line 209
+
+
+               S O L V E      S U M M A R Y
+
+     MODEL   Project             OBJECTIVE  z
+     TYPE    LP                  DIRECTION  MINIMIZE
+     SOLVER  CPLEX               FROM LINE  209
+
+**** SOLVER STATUS     1 Normal Completion
+**** MODEL STATUS      1 Optimal
+**** OBJECTIVE VALUE          7142012.7500
+
+ RESOURCE USAGE, LIMIT          0.000 10000000000.000
+ ITERATION COUNT, LIMIT       147    2147483647
+*** This solver runs with a community license. No commercial use.
+--- GMO setup time: 0.00s
+--- Space for names approximately 0.02 Mb
+--- Use option 'names no' to turn use of names off
+--- GMO memory 0.58 Mb (peak 0.58 Mb)
+--- Dictionary memory 0.00 Mb
+--- Cplex 22.1.2.0 link memory 0.01 Mb (peak 0.04 Mb)
+--- Starting Cplex
+
+
+--- LP status (1): optimal.
+--- Cplex Time: 0.00sec (det. 1.05 ticks)
+
+
+Optimal solution found
+Objective:      7142012.750000
+
+
+---- EQU DemandSatisfaction  Demand constraints
+
+               LOWER          LEVEL          UPPER         MARGINAL
+
+EAST.1        300.0000       300.0000       300.0000      1030.5250      
+EAST.2        320.0000       320.0000       320.0000      1035.5250      
+EAST.3        310.0000       310.0000       310.0000      1037.4000      
+EAST.4        330.0000       330.0000       330.0000      1037.4000      
+EAST.5        340.0000       340.0000       340.0000      1037.4000      
+EAST.6        350.0000       350.0000       350.0000      1037.4000      
+EAST.7        360.0000       360.0000       360.0000      1037.4000      
+EAST.8        370.0000       370.0000       370.0000      1037.4000      
+EAST.9        355.0000       355.0000       355.0000      1037.4000      
+EAST.10       340.0000       340.0000       340.0000      1037.4000      
+EAST.11       330.0000       330.0000       330.0000      1037.4000      
+EAST.12       320.0000       320.0000       320.0000      1037.4000      
+WEST.1        200.0000       200.0000       200.0000      1039.5250      
+WEST.2        220.0000       220.0000       220.0000      1044.5250      
+WEST.3        240.0000       240.0000       240.0000      1046.4000      
+WEST.4        230.0000       230.0000       230.0000      1046.4000      
+WEST.5        250.0000       250.0000       250.0000      1046.4000      
+WEST.6        270.0000       270.0000       270.0000      1046.4000      
+WEST.7        260.0000       260.0000       260.0000      1046.4000      
+WEST.8        280.0000       280.0000       280.0000      1046.4000      
+WEST.9        275.0000       275.0000       275.0000      1046.4000      
+WEST.10       260.0000       260.0000       260.0000      1046.4000      
+WEST.11       240.0000       240.0000       240.0000      1046.4000      
+WEST.12       230.0000       230.0000       230.0000      1046.4000      
+
+---- EQU InitialBacklog  Initial backlog
+
+            LOWER          LEVEL          UPPER         MARGINAL
+
+EAST          .              .              .              .          
+WEST          .              .              .              .          
+
+---- EQU ClearBacklog  clear backlogs
+
+            LOWER          LEVEL          UPPER         MARGINAL
+
+EAST          .              .              .              .          
+WEST          .              .              .              .          
+
+---- EQU InventoryBalance1  Opening inventory
+
+           LOWER          LEVEL          UPPER         MARGINAL
+
+CHN          .              .              .          -702.0250      
+IND          .              .              .          -799.3250      
+
+---- EQU InventoryBalance  Inventory flow
+
+              LOWER          LEVEL          UPPER         MARGINAL
+
+CHN.2           .              .              .          -707.0250      
+CHN.3           .              .              .          -708.9000      
+CHN.4           .              .              .          -708.9000      
+CHN.5           .              .              .          -708.9000      
+CHN.6           .              .              .          -708.9000      
+CHN.7           .              .              .          -708.9000      
+CHN.8           .              .              .          -708.9000      
+CHN.9           .              .              .          -708.9000      
+CHN.10          .              .              .          -708.9000      
+CHN.11          .              .              .          -708.9000      
+CHN.12          .              .              .          -708.9000      
+IND.2           .              .              .          -804.3250      
+IND.3           .              .              .          -806.2000      
+IND.4           .              .              .          -806.2000      
+IND.5           .              .              .          -806.2000      
+IND.6           .              .              .          -806.2000      
+IND.7           .              .              .          -806.2000      
+IND.8           .              .              .          -806.2000      
+IND.9           .              .              .          -806.2000      
+IND.10          .              .              .          -806.2000      
+IND.11          .              .              .          -806.2000      
+IND.12          .              .              .          -806.2000      
+
+---- EQU PlantCap  Production capacity
+
+              LOWER          LEVEL          UPPER         MARGINAL
+
+CHN.1         -INF          390.0000       600.0000          .          
+CHN.2         -INF          400.0000       600.0000          .          
+CHN.3         -INF          425.0000       600.0000          .          
+CHN.4         -INF          435.0000       600.0000          .          
+CHN.5         -INF          465.0000       600.0000          .          
+CHN.6         -INF          495.0000       600.0000          .          
+CHN.7         -INF          495.0000       600.0000          .          
+CHN.8         -INF          525.0000       600.0000          .          
+CHN.9         -INF          505.0000       600.0000          .          
+CHN.10        -INF          475.0000       600.0000          .          
+CHN.11        -INF          445.0000       600.0000          .          
+CHN.12        -INF          425.0000       600.0000          .          
+IND.1         -INF          125.0000       400.0000          .          
+IND.2         -INF          125.0000       400.0000          .          
+IND.3         -INF          125.0000       400.0000          .          
+IND.4         -INF          125.0000       400.0000          .          
+IND.5         -INF          125.0000       400.0000          .          
+IND.6         -INF          125.0000       400.0000          .          
+IND.7         -INF          125.0000       400.0000          .          
+IND.8         -INF          125.0000       400.0000          .          
+IND.9         -INF          125.0000       400.0000          .          
+IND.10        -INF          125.0000       400.0000          .          
+IND.11        -INF          125.0000       400.0000          .          
+IND.12        -INF          125.0000       400.0000          .          
+
+---- EQU SupplierAvail  Supplier limits
+
+                     LOWER          LEVEL          UPPER         MARGINAL
+
+BAT.S1.CHN.1         -INF          300.0000       300.0000       -13.9000      
+BAT.S1.CHN.2         -INF          300.0000       300.0000       -13.9000      
+BAT.S1.CHN.3         -INF          300.0000       300.0000       -13.9000      
+BAT.S1.CHN.4         -INF          300.0000       300.0000       -13.9000      
+BAT.S1.CHN.5         -INF          300.0000       300.0000       -13.9000      
+BAT.S1.CHN.6         -INF          300.0000       300.0000       -13.9000      
+BAT.S1.CHN.7         -INF          300.0000       300.0000       -13.9000      
+BAT.S1.CHN.8         -INF          300.0000       300.0000       -13.9000      
+BAT.S1.CHN.9         -INF          300.0000       300.0000       -13.9000      
+BAT.S1.CHN.10        -INF          300.0000       300.0000       -13.9000      
+BAT.S1.CHN.11        -INF          300.0000       300.0000       -13.9000      
+BAT.S1.CHN.12        -INF          300.0000       300.0000       -13.9000      
+BAT.S1.IND.1         -INF           25.0000       150.0000          .          
+BAT.S1.IND.2         -INF           25.0000       150.0000          .          
+BAT.S1.IND.3         -INF           25.0000       150.0000          .          
+BAT.S1.IND.4         -INF           25.0000       150.0000          .          
+BAT.S1.IND.5         -INF           25.0000       150.0000          .          
+BAT.S1.IND.6         -INF           25.0000       150.0000          .          
+BAT.S1.IND.7         -INF           25.0000       150.0000          .          
+BAT.S1.IND.8         -INF           25.0000       150.0000          .          
+BAT.S1.IND.9         -INF           25.0000       150.0000          .          
+BAT.S1.IND.10        -INF           25.0000       150.0000          .          
+BAT.S1.IND.11        -INF           25.0000       150.0000          .          
+BAT.S1.IND.12        -INF           25.0000       150.0000          .          
+BAT.S2.CHN.1         -INF           90.0000       400.0000          .          
+BAT.S2.CHN.2         -INF          100.0000       400.0000          .          
+BAT.S2.CHN.3         -INF          125.0000       400.0000          .          
+BAT.S2.CHN.4         -INF          135.0000       400.0000          .          
+BAT.S2.CHN.5         -INF          165.0000       400.0000          .          
+BAT.S2.CHN.6         -INF          195.0000       400.0000          .          
+BAT.S2.CHN.7         -INF          195.0000       400.0000          .          
+BAT.S2.CHN.8         -INF          225.0000       400.0000          .          
+BAT.S2.CHN.9         -INF          205.0000       400.0000          .          
+BAT.S2.CHN.10        -INF          175.0000       400.0000          .          
+BAT.S2.CHN.11        -INF          145.0000       400.0000          .          
+BAT.S2.CHN.12        -INF          125.0000       400.0000          .          
+BAT.S2.IND.1         -INF          100.0000       100.0000        -6.5500      
+BAT.S2.IND.2         -INF          100.0000       100.0000        -6.5500      
+BAT.S2.IND.3         -INF          100.0000       100.0000        -6.5500      
+BAT.S2.IND.4         -INF          100.0000       100.0000        -6.5500      
+BAT.S2.IND.5         -INF          100.0000       100.0000        -6.5500      
+BAT.S2.IND.6         -INF          100.0000       100.0000        -6.5500      
+BAT.S2.IND.7         -INF          100.0000       100.0000        -6.5500      
+BAT.S2.IND.8         -INF          100.0000       100.0000        -6.5500      
+BAT.S2.IND.9         -INF          100.0000       100.0000        -6.5500      
+BAT.S2.IND.10        -INF          100.0000       100.0000        -6.5500      
+BAT.S2.IND.11        -INF          100.0000       100.0000        -6.5500      
+BAT.S2.IND.12        -INF          100.0000       100.0000        -6.5500      
+MOT.S1.CHN.1         -INF             .           500.0000          .          
+MOT.S1.CHN.2         -INF             .           500.0000          .          
+MOT.S1.CHN.3         -INF           25.0000       500.0000          .          
+MOT.S1.CHN.4         -INF           35.0000       500.0000          .          
+MOT.S1.CHN.5         -INF           65.0000       500.0000          .          
+MOT.S1.CHN.6         -INF           95.0000       500.0000          .          
+MOT.S1.CHN.7         -INF           95.0000       500.0000          .          
+MOT.S1.CHN.8         -INF          125.0000       500.0000          .          
+MOT.S1.CHN.9         -INF          105.0000       500.0000          .          
+MOT.S1.CHN.10        -INF           75.0000       500.0000          .          
+MOT.S1.CHN.11        -INF           45.0000       500.0000          .          
+MOT.S1.CHN.12        -INF           25.0000       500.0000          .          
+MOT.S1.IND.1         -INF          125.0000       400.0000          .          
+MOT.S1.IND.2         -INF          125.0000       400.0000          .          
+MOT.S1.IND.3         -INF          125.0000       400.0000          .          
+MOT.S1.IND.4         -INF          125.0000       400.0000          .          
+MOT.S1.IND.5         -INF          125.0000       400.0000          .          
+MOT.S1.IND.6         -INF          125.0000       400.0000          .          
+MOT.S1.IND.7         -INF          125.0000       400.0000          .          
+MOT.S1.IND.8         -INF          125.0000       400.0000          .          
+MOT.S1.IND.9         -INF          125.0000       400.0000          .          
+MOT.S1.IND.10        -INF          125.0000       400.0000          .          
+MOT.S1.IND.11        -INF          125.0000       400.0000          .          
+MOT.S1.IND.12        -INF          125.0000       400.0000          .          
+MOT.S2.CHN.1         -INF          390.0000       400.0000          .          
+MOT.S2.CHN.2         -INF          400.0000       400.0000        -5.0000      
+MOT.S2.CHN.3         -INF          400.0000       400.0000        -6.8750      
+MOT.S2.CHN.4         -INF          400.0000       400.0000        -6.8750      
+MOT.S2.CHN.5         -INF          400.0000       400.0000        -6.8750      
+MOT.S2.CHN.6         -INF          400.0000       400.0000        -6.8750      
+MOT.S2.CHN.7         -INF          400.0000       400.0000        -6.8750      
+MOT.S2.CHN.8         -INF          400.0000       400.0000        -6.8750      
+MOT.S2.CHN.9         -INF          400.0000       400.0000        -6.8750      
+MOT.S2.CHN.10        -INF          400.0000       400.0000        -6.8750      
+MOT.S2.CHN.11        -INF          400.0000       400.0000        -6.8750      
+MOT.S2.CHN.12        -INF          400.0000       400.0000        -6.8750      
+MOT.S2.IND.1         -INF             .           350.0000          .          
+MOT.S2.IND.2         -INF             .           350.0000          .          
+MOT.S2.IND.3         -INF             .           350.0000          .          
+MOT.S2.IND.4         -INF             .           350.0000          .          
+MOT.S2.IND.5         -INF             .           350.0000          .          
+MOT.S2.IND.6         -INF             .           350.0000          .          
+MOT.S2.IND.7         -INF             .           350.0000          .          
+MOT.S2.IND.8         -INF             .           350.0000          .          
+MOT.S2.IND.9         -INF             .           350.0000          .          
+MOT.S2.IND.10        -INF             .           350.0000          .          
+MOT.S2.IND.11        -INF             .           350.0000          .          
+MOT.S2.IND.12        -INF             .           350.0000          .          
+PCB.S1.CHN.1         -INF          180.0000       600.0000          .          
+PCB.S1.CHN.2         -INF          200.0000       600.0000          .          
+PCB.S1.CHN.3         -INF          250.0000       600.0000          .          
+PCB.S1.CHN.4         -INF          270.0000       600.0000          .          
+PCB.S1.CHN.5         -INF          330.0000       600.0000          .          
+PCB.S1.CHN.6         -INF          390.0000       600.0000          .          
+PCB.S1.CHN.7         -INF          390.0000       600.0000          .          
+PCB.S1.CHN.8         -INF          450.0000       600.0000          .          
+PCB.S1.CHN.9         -INF          410.0000       600.0000          .          
+PCB.S1.CHN.10        -INF          350.0000       600.0000          .          
+PCB.S1.CHN.11        -INF          290.0000       600.0000          .          
+PCB.S1.CHN.12        -INF          250.0000       600.0000          .          
+PCB.S1.IND.1         -INF          150.0000       150.0000        -8.8925      
+PCB.S1.IND.2         -INF          150.0000       150.0000       -11.3925      
+PCB.S1.IND.3         -INF          150.0000       150.0000       -12.3300      
+PCB.S1.IND.4         -INF          150.0000       150.0000       -12.3300      
+PCB.S1.IND.5         -INF          150.0000       150.0000       -12.3300      
+PCB.S1.IND.6         -INF          150.0000       150.0000       -12.3300      
+PCB.S1.IND.7         -INF          150.0000       150.0000       -12.3300      
+PCB.S1.IND.8         -INF          150.0000       150.0000       -12.3300      
+PCB.S1.IND.9         -INF          150.0000       150.0000       -12.3300      
+PCB.S1.IND.10        -INF          150.0000       150.0000       -12.3300      
+PCB.S1.IND.11        -INF          150.0000       150.0000       -12.3300      
+PCB.S1.IND.12        -INF          150.0000       150.0000       -12.3300      
+PCB.S2.CHN.1         -INF          600.0000       600.0000        -0.5000      
+PCB.S2.CHN.2         -INF          600.0000       600.0000        -0.5000      
+PCB.S2.CHN.3         -INF          600.0000       600.0000        -0.5000      
+PCB.S2.CHN.4         -INF          600.0000       600.0000        -0.5000      
+PCB.S2.CHN.5         -INF          600.0000       600.0000        -0.5000      
+PCB.S2.CHN.6         -INF          600.0000       600.0000        -0.5000      
+PCB.S2.CHN.7         -INF          600.0000       600.0000        -0.5000      
+PCB.S2.CHN.8         -INF          600.0000       600.0000        -0.5000      
+PCB.S2.CHN.9         -INF          600.0000       600.0000        -0.5000      
+PCB.S2.CHN.10        -INF          600.0000       600.0000        -0.5000      
+PCB.S2.CHN.11        -INF          600.0000       600.0000        -0.5000      
+PCB.S2.CHN.12        -INF          600.0000       600.0000        -0.5000      
+PCB.S2.IND.1         -INF          100.0000       100.0000        -4.1325      
+PCB.S2.IND.2         -INF          100.0000       100.0000        -6.6325      
+PCB.S2.IND.3         -INF          100.0000       100.0000        -7.5700      
+PCB.S2.IND.4         -INF          100.0000       100.0000        -7.5700      
+PCB.S2.IND.5         -INF          100.0000       100.0000        -7.5700      
+PCB.S2.IND.6         -INF          100.0000       100.0000        -7.5700      
+PCB.S2.IND.7         -INF          100.0000       100.0000        -7.5700      
+PCB.S2.IND.8         -INF          100.0000       100.0000        -7.5700      
+PCB.S2.IND.9         -INF          100.0000       100.0000        -7.5700      
+PCB.S2.IND.10        -INF          100.0000       100.0000        -7.5700      
+PCB.S2.IND.11        -INF          100.0000       100.0000        -7.5700      
+PCB.S2.IND.12        -INF          100.0000       100.0000        -7.5700      
+CHS.S1.CHN.1         -INF          390.0000       600.0000          .          
+CHS.S1.CHN.2         -INF          400.0000       600.0000          .          
+CHS.S1.CHN.3         -INF          425.0000       600.0000          .          
+CHS.S1.CHN.4         -INF          435.0000       600.0000          .          
+CHS.S1.CHN.5         -INF          465.0000       600.0000          .          
+CHS.S1.CHN.6         -INF          495.0000       600.0000          .          
+CHS.S1.CHN.7         -INF          495.0000       600.0000          .          
+CHS.S1.CHN.8         -INF          525.0000       600.0000          .          
+CHS.S1.CHN.9         -INF          505.0000       600.0000          .          
+CHS.S1.CHN.10        -INF          475.0000       600.0000          .          
+CHS.S1.CHN.11        -INF          445.0000       600.0000          .          
+CHS.S1.CHN.12        -INF          425.0000       600.0000          .          
+CHS.S1.IND.1         -INF             .           200.0000          .          
+CHS.S1.IND.2         -INF             .           200.0000          .          
+CHS.S1.IND.3         -INF             .           200.0000          .          
+CHS.S1.IND.4         -INF             .           200.0000          .          
+CHS.S1.IND.5         -INF             .           200.0000          .          
+CHS.S1.IND.6         -INF             .           200.0000          .          
+CHS.S1.IND.7         -INF             .           200.0000          .          
+CHS.S1.IND.8         -INF             .           200.0000          .          
+CHS.S1.IND.9         -INF             .           200.0000          .          
+CHS.S1.IND.10        -INF             .           200.0000          .          
+CHS.S1.IND.11        -INF             .           200.0000          .          
+CHS.S1.IND.12        -INF             .           200.0000          .          
+CHS.S2.CHN.1         -INF             .           600.0000          .          
+CHS.S2.CHN.2         -INF             .           600.0000          .          
+CHS.S2.CHN.3         -INF             .           600.0000          .          
+CHS.S2.CHN.4         -INF             .           600.0000          .          
+CHS.S2.CHN.5         -INF             .           600.0000          .          
+CHS.S2.CHN.6         -INF             .           600.0000          .          
+CHS.S2.CHN.7         -INF             .           600.0000          .          
+CHS.S2.CHN.8         -INF             .           600.0000          .          
+CHS.S2.CHN.9         -INF             .           600.0000          .          
+CHS.S2.CHN.10        -INF             .           600.0000          .          
+CHS.S2.CHN.11        -INF             .           600.0000          .          
+CHS.S2.CHN.12        -INF             .           600.0000          .          
+CHS.S2.IND.1         -INF          125.0000       300.0000          .          
+CHS.S2.IND.2         -INF          125.0000       300.0000          .          
+CHS.S2.IND.3         -INF          125.0000       300.0000          .          
+CHS.S2.IND.4         -INF          125.0000       300.0000          .          
+CHS.S2.IND.5         -INF          125.0000       300.0000          .          
+CHS.S2.IND.6         -INF          125.0000       300.0000          .          
+CHS.S2.IND.7         -INF          125.0000       300.0000          .          
+CHS.S2.IND.8         -INF          125.0000       300.0000          .          
+CHS.S2.IND.9         -INF          125.0000       300.0000          .          
+CHS.S2.IND.10        -INF          125.0000       300.0000          .          
+CHS.S2.IND.11        -INF          125.0000       300.0000          .          
+CHS.S2.IND.12        -INF          125.0000       300.0000          .          
+
+---- EQU ComponentRequirement  BOM requirements
+
+                  LOWER          LEVEL          UPPER         MARGINAL
+
+BAT.CHN.1           .              .              .           103.5000      
+BAT.CHN.2           .              .              .           103.5000      
+BAT.CHN.3           .              .              .           103.5000      
+BAT.CHN.4           .              .              .           103.5000      
+BAT.CHN.5           .              .              .           103.5000      
+BAT.CHN.6           .              .              .           103.5000      
+BAT.CHN.7           .              .              .           103.5000      
+BAT.CHN.8           .              .              .           103.5000      
+BAT.CHN.9           .              .              .           103.5000      
+BAT.CHN.10          .              .              .           103.5000      
+BAT.CHN.11          .              .              .           103.5000      
+BAT.CHN.12          .              .              .           103.5000      
+BAT.IND.1           .              .              .            73.5000      
+BAT.IND.2           .              .              .            73.5000      
+BAT.IND.3           .              .              .            73.5000      
+BAT.IND.4           .              .              .            73.5000      
+BAT.IND.5           .              .              .            73.5000      
+BAT.IND.6           .              .              .            73.5000      
+BAT.IND.7           .              .              .            73.5000      
+BAT.IND.8           .              .              .            73.5000      
+BAT.IND.9           .              .              .            73.5000      
+BAT.IND.10          .              .              .            73.5000      
+BAT.IND.11          .              .              .            73.5000      
+BAT.IND.12          .              .              .            73.5000      
+MOT.CHN.1           .              .              .            59.1250      
+MOT.CHN.2           .              .              .            64.1250      
+MOT.CHN.3           .              .              .            66.0000      
+MOT.CHN.4           .              .              .            66.0000      
+MOT.CHN.5           .              .              .            66.0000      
+MOT.CHN.6           .              .              .            66.0000      
+MOT.CHN.7           .              .              .            66.0000      
+MOT.CHN.8           .              .              .            66.0000      
+MOT.CHN.9           .              .              .            66.0000      
+MOT.CHN.10          .              .              .            66.0000      
+MOT.CHN.11          .              .              .            66.0000      
+MOT.CHN.12          .              .              .            66.0000      
+MOT.IND.1           .              .              .            57.2000      
+MOT.IND.2           .              .              .            57.2000      
+MOT.IND.3           .              .              .            57.2000      
+MOT.IND.4           .              .              .            57.2000      
+MOT.IND.5           .              .              .            57.2000      
+MOT.IND.6           .              .              .            57.2000      
+MOT.IND.7           .              .              .            57.2000      
+MOT.IND.8           .              .              .            57.2000      
+MOT.IND.9           .              .              .            57.2000      
+MOT.IND.10          .              .              .            57.2000      
+MOT.IND.11          .              .              .            57.2000      
+MOT.IND.12          .              .              .            57.2000      
+PCB.CHN.1           .              .              .            32.4000      
+PCB.CHN.2           .              .              .            32.4000      
+PCB.CHN.3           .              .              .            32.4000      
+PCB.CHN.4           .              .              .            32.4000      
+PCB.CHN.5           .              .              .            32.4000      
+PCB.CHN.6           .              .              .            32.4000      
+PCB.CHN.7           .              .              .            32.4000      
+PCB.CHN.8           .              .              .            32.4000      
+PCB.CHN.9           .              .              .            32.4000      
+PCB.CHN.10          .              .              .            32.4000      
+PCB.CHN.11          .              .              .            32.4000      
+PCB.CHN.12          .              .              .            32.4000      
+PCB.IND.1           .              .              .            37.7325      
+PCB.IND.2           .              .              .            40.2325      
+PCB.IND.3           .              .              .            41.1700      
+PCB.IND.4           .              .              .            41.1700      
+PCB.IND.5           .              .              .            41.1700      
+PCB.IND.6           .              .              .            41.1700      
+PCB.IND.7           .              .              .            41.1700      
+PCB.IND.8           .              .              .            41.1700      
+PCB.IND.9           .              .              .            41.1700      
+PCB.IND.10          .              .              .            41.1700      
+PCB.IND.11          .              .              .            41.1700      
+PCB.IND.12          .              .              .            41.1700      
+CHS.CHN.1           .              .              .            43.6000      
+CHS.CHN.2           .              .              .            43.6000      
+CHS.CHN.3           .              .              .            43.6000      
+CHS.CHN.4           .              .              .            43.6000      
+CHS.CHN.5           .              .              .            43.6000      
+CHS.CHN.6           .              .              .            43.6000      
+CHS.CHN.7           .              .              .            43.6000      
+CHS.CHN.8           .              .              .            43.6000      
+CHS.CHN.9           .              .              .            43.6000      
+CHS.CHN.10          .              .              .            43.6000      
+CHS.CHN.11          .              .              .            43.6000      
+CHS.CHN.12          .              .              .            43.6000      
+CHS.IND.1           .              .              .            38.1600      
+CHS.IND.2           .              .              .            38.1600      
+CHS.IND.3           .              .              .            38.1600      
+CHS.IND.4           .              .              .            38.1600      
+CHS.IND.5           .              .              .            38.1600      
+CHS.IND.6           .              .              .            38.1600      
+CHS.IND.7           .              .              .            38.1600      
+CHS.IND.8           .              .              .            38.1600      
+CHS.IND.9           .              .              .            38.1600      
+CHS.IND.10          .              .              .            38.1600      
+CHS.IND.11          .              .              .            38.1600      
+CHS.IND.12          .              .              .            38.1600      
+
+                           LOWER          LEVEL          UPPER         MARGINAL
+
+---- EQU Sustainab~        -INF         3466.2500      4000.0000          .          
+---- EQU Objective           .              .              .             1.0000      
+
+  Sustainability  Emission cap
+  Objective  Total cost minimization
+
+---- VAR q  Units produced
+
+              LOWER          LEVEL          UPPER         MARGINAL
+
+CHN.1           .           390.0000        +INF             .          
+CHN.2           .           400.0000        +INF             .          
+CHN.3           .           425.0000        +INF             .          
+CHN.4           .           435.0000        +INF             .          
+CHN.5           .           465.0000        +INF             .          
+CHN.6           .           495.0000        +INF             .          
+CHN.7           .           495.0000        +INF             .          
+CHN.8           .           525.0000        +INF             .          
+CHN.9           .           505.0000        +INF             .          
+CHN.10          .           475.0000        +INF             .          
+CHN.11          .           445.0000        +INF             .          
+CHN.12          .           425.0000        +INF             .          
+IND.1           .           125.0000        +INF             .          
+IND.2           .           125.0000        +INF             .          
+IND.3           .           125.0000        +INF             .          
+IND.4           .           125.0000        +INF             .          
+IND.5           .           125.0000        +INF             .          
+IND.6           .           125.0000        +INF             .          
+IND.7           .           125.0000        +INF             .          
+IND.8           .           125.0000        +INF             .          
+IND.9           .           125.0000        +INF             .          
+IND.10          .           125.0000        +INF             .          
+IND.11          .           125.0000        +INF             .          
+IND.12          .           125.0000        +INF             .          
+
+---- VAR x  Units shipped
+
+                   LOWER          LEVEL          UPPER         MARGINAL
+
+CHN.EAST.1           .           190.0000        +INF             .          
+CHN.EAST.2           .           180.0000        +INF             .          
+CHN.EAST.3           .           185.0000        +INF             .          
+CHN.EAST.4           .           205.0000        +INF             .          
+CHN.EAST.5           .           215.0000        +INF             .          
+CHN.EAST.6           .           225.0000        +INF             .          
+CHN.EAST.7           .           235.0000        +INF             .          
+CHN.EAST.8           .           245.0000        +INF             .          
+CHN.EAST.9           .           230.0000        +INF             .          
+CHN.EAST.10          .           215.0000        +INF             .          
+CHN.EAST.11          .           205.0000        +INF             .          
+CHN.EAST.12          .           195.0000        +INF             .          
+CHN.WEST.1           .           200.0000        +INF             .          
+CHN.WEST.2           .           220.0000        +INF             .          
+CHN.WEST.3           .           240.0000        +INF             .          
+CHN.WEST.4           .           230.0000        +INF             .          
+CHN.WEST.5           .           250.0000        +INF             .          
+CHN.WEST.6           .           270.0000        +INF             .          
+CHN.WEST.7           .           260.0000        +INF             .          
+CHN.WEST.8           .           280.0000        +INF             .          
+CHN.WEST.9           .           275.0000        +INF             .          
+CHN.WEST.10          .           260.0000        +INF             .          
+CHN.WEST.11          .           240.0000        +INF             .          
+CHN.WEST.12          .           230.0000        +INF             .          
+IND.EAST.1           .           110.0000        +INF             .          
+IND.EAST.2           .           140.0000        +INF             .          
+IND.EAST.3           .           125.0000        +INF             .          
+IND.EAST.4           .           125.0000        +INF             .          
+IND.EAST.5           .           125.0000        +INF             .          
+IND.EAST.6           .           125.0000        +INF             .          
+IND.EAST.7           .           125.0000        +INF             .          
+IND.EAST.8           .           125.0000        +INF             .          
+IND.EAST.9           .           125.0000        +INF             .          
+IND.EAST.10          .           125.0000        +INF             .          
+IND.EAST.11          .           125.0000        +INF             .          
+IND.EAST.12          .           125.0000        +INF             .          
+IND.WEST.1           .              .            +INF            5.4000      
+IND.WEST.2           .              .            +INF            5.4000      
+IND.WEST.3           .              .            +INF            5.4000      
+IND.WEST.4           .              .            +INF            5.4000      
+IND.WEST.5           .              .            +INF            5.4000      
+IND.WEST.6           .              .            +INF            5.4000      
+IND.WEST.7           .              .            +INF            5.4000      
+IND.WEST.8           .              .            +INF            5.4000      
+IND.WEST.9           .              .            +INF            5.4000      
+IND.WEST.10          .              .            +INF            5.4000      
+IND.WEST.11          .              .            +INF            5.4000      
+IND.WEST.12          .              .            +INF            5.4000      
+
+---- VAR y  Components purchased
+
+                     LOWER          LEVEL          UPPER         MARGINAL
+
+BAT.S1.CHN.1           .           300.0000        +INF             .          
+BAT.S1.CHN.2           .           300.0000        +INF             .          
+BAT.S1.CHN.3           .           300.0000        +INF             .          
+BAT.S1.CHN.4           .           300.0000        +INF             .          
+BAT.S1.CHN.5           .           300.0000        +INF             .          
+BAT.S1.CHN.6           .           300.0000        +INF             .          
+BAT.S1.CHN.7           .           300.0000        +INF             .          
+BAT.S1.CHN.8           .           300.0000        +INF             .          
+BAT.S1.CHN.9           .           300.0000        +INF             .          
+BAT.S1.CHN.10          .           300.0000        +INF             .          
+BAT.S1.CHN.11          .           300.0000        +INF             .          
+BAT.S1.CHN.12          .           300.0000        +INF             .          
+BAT.S1.IND.1           .            25.0000        +INF             .          
+BAT.S1.IND.2           .            25.0000        +INF             .          
+BAT.S1.IND.3           .            25.0000        +INF             .          
+BAT.S1.IND.4           .            25.0000        +INF             .          
+BAT.S1.IND.5           .            25.0000        +INF             .          
+BAT.S1.IND.6           .            25.0000        +INF             .          
+BAT.S1.IND.7           .            25.0000        +INF             .          
+BAT.S1.IND.8           .            25.0000        +INF             .          
+BAT.S1.IND.9           .            25.0000        +INF             .          
+BAT.S1.IND.10          .            25.0000        +INF             .          
+BAT.S1.IND.11          .            25.0000        +INF             .          
+BAT.S1.IND.12          .            25.0000        +INF             .          
+BAT.S2.CHN.1           .            90.0000        +INF             .          
+BAT.S2.CHN.2           .           100.0000        +INF             .          
+BAT.S2.CHN.3           .           125.0000        +INF             .          
+BAT.S2.CHN.4           .           135.0000        +INF             .          
+BAT.S2.CHN.5           .           165.0000        +INF             .          
+BAT.S2.CHN.6           .           195.0000        +INF             .          
+BAT.S2.CHN.7           .           195.0000        +INF             .          
+BAT.S2.CHN.8           .           225.0000        +INF             .          
+BAT.S2.CHN.9           .           205.0000        +INF             .          
+BAT.S2.CHN.10          .           175.0000        +INF             .          
+BAT.S2.CHN.11          .           145.0000        +INF             .          
+BAT.S2.CHN.12          .           125.0000        +INF             .          
+BAT.S2.IND.1           .           100.0000        +INF             .          
+BAT.S2.IND.2           .           100.0000        +INF             .          
+BAT.S2.IND.3           .           100.0000        +INF             .          
+BAT.S2.IND.4           .           100.0000        +INF             .          
+BAT.S2.IND.5           .           100.0000        +INF             .          
+BAT.S2.IND.6           .           100.0000        +INF             .          
+BAT.S2.IND.7           .           100.0000        +INF             .          
+BAT.S2.IND.8           .           100.0000        +INF             .          
+BAT.S2.IND.9           .           100.0000        +INF             .          
+BAT.S2.IND.10          .           100.0000        +INF             .          
+BAT.S2.IND.11          .           100.0000        +INF             .          
+BAT.S2.IND.12          .           100.0000        +INF             .          
+MOT.S1.CHN.1           .              .            +INF            6.8750      
+MOT.S1.CHN.2           .              .            +INF            1.8750      
+MOT.S1.CHN.3           .            25.0000        +INF             .          
+MOT.S1.CHN.4           .            35.0000        +INF             .          
+MOT.S1.CHN.5           .            65.0000        +INF             .          
+MOT.S1.CHN.6           .            95.0000        +INF             .          
+MOT.S1.CHN.7           .            95.0000        +INF             .          
+MOT.S1.CHN.8           .           125.0000        +INF             .          
+MOT.S1.CHN.9           .           105.0000        +INF             .          
+MOT.S1.CHN.10          .            75.0000        +INF             .          
+MOT.S1.CHN.11          .            45.0000        +INF             .          
+MOT.S1.CHN.12          .            25.0000        +INF             .          
+MOT.S1.IND.1           .           125.0000        +INF             .          
+MOT.S1.IND.2           .           125.0000        +INF             .          
+MOT.S1.IND.3           .           125.0000        +INF             .          
+MOT.S1.IND.4           .           125.0000        +INF             .          
+MOT.S1.IND.5           .           125.0000        +INF             .          
+MOT.S1.IND.6           .           125.0000        +INF             .          
+MOT.S1.IND.7           .           125.0000        +INF             .          
+MOT.S1.IND.8           .           125.0000        +INF             .          
+MOT.S1.IND.9           .           125.0000        +INF             .          
+MOT.S1.IND.10          .           125.0000        +INF             .          
+MOT.S1.IND.11          .           125.0000        +INF             .          
+MOT.S1.IND.12          .           125.0000        +INF             .          
+MOT.S2.CHN.1           .           390.0000        +INF             .          
+MOT.S2.CHN.2           .           400.0000        +INF             .          
+MOT.S2.CHN.3           .           400.0000        +INF             .          
+MOT.S2.CHN.4           .           400.0000        +INF             .          
+MOT.S2.CHN.5           .           400.0000        +INF             .          
+MOT.S2.CHN.6           .           400.0000        +INF             .          
+MOT.S2.CHN.7           .           400.0000        +INF             .          
+MOT.S2.CHN.8           .           400.0000        +INF             .          
+MOT.S2.CHN.9           .           400.0000        +INF             .          
+MOT.S2.CHN.10          .           400.0000        +INF             .          
+MOT.S2.CHN.11          .           400.0000        +INF             .          
+MOT.S2.CHN.12          .           400.0000        +INF             .          
+MOT.S2.IND.1           .              .            +INF            4.2800      
+MOT.S2.IND.2           .              .            +INF            4.2800      
+MOT.S2.IND.3           .              .            +INF            4.2800      
+MOT.S2.IND.4           .              .            +INF            4.2800      
+MOT.S2.IND.5           .              .            +INF            4.2800      
+MOT.S2.IND.6           .              .            +INF            4.2800      
+MOT.S2.IND.7           .              .            +INF            4.2800      
+MOT.S2.IND.8           .              .            +INF            4.2800      
+MOT.S2.IND.9           .              .            +INF            4.2800      
+MOT.S2.IND.10          .              .            +INF            4.2800      
+MOT.S2.IND.11          .              .            +INF            4.2800      
+MOT.S2.IND.12          .              .            +INF            4.2800      
+PCB.S1.CHN.1           .           180.0000        +INF             .          
+PCB.S1.CHN.2           .           200.0000        +INF             .          
+PCB.S1.CHN.3           .           250.0000        +INF             .          
+PCB.S1.CHN.4           .           270.0000        +INF             .          
+PCB.S1.CHN.5           .           330.0000        +INF             .          
+PCB.S1.CHN.6           .           390.0000        +INF             .          
+PCB.S1.CHN.7           .           390.0000        +INF             .          
+PCB.S1.CHN.8           .           450.0000        +INF             .          
+PCB.S1.CHN.9           .           410.0000        +INF             .          
+PCB.S1.CHN.10          .           350.0000        +INF             .          
+PCB.S1.CHN.11          .           290.0000        +INF             .          
+PCB.S1.CHN.12          .           250.0000        +INF             .          
+PCB.S1.IND.1           .           150.0000        +INF             .          
+PCB.S1.IND.2           .           150.0000        +INF             .          
+PCB.S1.IND.3           .           150.0000        +INF             .          
+PCB.S1.IND.4           .           150.0000        +INF             .          
+PCB.S1.IND.5           .           150.0000        +INF             .          
+PCB.S1.IND.6           .           150.0000        +INF             .          
+PCB.S1.IND.7           .           150.0000        +INF             .          
+PCB.S1.IND.8           .           150.0000        +INF             .          
+PCB.S1.IND.9           .           150.0000        +INF             .          
+PCB.S1.IND.10          .           150.0000        +INF             .          
+PCB.S1.IND.11          .           150.0000        +INF             .          
+PCB.S1.IND.12          .           150.0000        +INF             .          
+PCB.S2.CHN.1           .           600.0000        +INF             .          
+PCB.S2.CHN.2           .           600.0000        +INF             .          
+PCB.S2.CHN.3           .           600.0000        +INF             .          
+PCB.S2.CHN.4           .           600.0000        +INF             .          
+PCB.S2.CHN.5           .           600.0000        +INF             .          
+PCB.S2.CHN.6           .           600.0000        +INF             .          
+PCB.S2.CHN.7           .           600.0000        +INF             .          
+PCB.S2.CHN.8           .           600.0000        +INF             .          
+PCB.S2.CHN.9           .           600.0000        +INF             .          
+PCB.S2.CHN.10          .           600.0000        +INF             .          
+PCB.S2.CHN.11          .           600.0000        +INF             .          
+PCB.S2.CHN.12          .           600.0000        +INF             .          
+PCB.S2.IND.1           .           100.0000        +INF             .          
+PCB.S2.IND.2           .           100.0000        +INF             .          
+PCB.S2.IND.3           .           100.0000        +INF             .          
+PCB.S2.IND.4           .           100.0000        +INF             .          
+PCB.S2.IND.5           .           100.0000        +INF             .          
+PCB.S2.IND.6           .           100.0000        +INF             .          
+PCB.S2.IND.7           .           100.0000        +INF             .          
+PCB.S2.IND.8           .           100.0000        +INF             .          
+PCB.S2.IND.9           .           100.0000        +INF             .          
+PCB.S2.IND.10          .           100.0000        +INF             .          
+PCB.S2.IND.11          .           100.0000        +INF             .          
+PCB.S2.IND.12          .           100.0000        +INF             .          
+CHS.S1.CHN.1           .           390.0000        +INF             .          
+CHS.S1.CHN.2           .           400.0000        +INF             .          
+CHS.S1.CHN.3           .           425.0000        +INF             .          
+CHS.S1.CHN.4           .           435.0000        +INF             .          
+CHS.S1.CHN.5           .           465.0000        +INF             .          
+CHS.S1.CHN.6           .           495.0000        +INF             .          
+CHS.S1.CHN.7           .           495.0000        +INF             .          
+CHS.S1.CHN.8           .           525.0000        +INF             .          
+CHS.S1.CHN.9           .           505.0000        +INF             .          
+CHS.S1.CHN.10          .           475.0000        +INF             .          
+CHS.S1.CHN.11          .           445.0000        +INF             .          
+CHS.S1.CHN.12          .           425.0000        +INF             .          
+CHS.S1.IND.1           .              .            +INF            1.3600      
+CHS.S1.IND.2           .              .            +INF            1.3600      
+CHS.S1.IND.3           .              .            +INF            1.3600      
+CHS.S1.IND.4           .              .            +INF            1.3600      
+CHS.S1.IND.5           .              .            +INF            1.3600      
+CHS.S1.IND.6           .              .            +INF            1.3600      
+CHS.S1.IND.7           .              .            +INF            1.3600      
+CHS.S1.IND.8           .              .            +INF            1.3600      
+CHS.S1.IND.9           .              .            +INF            1.3600      
+CHS.S1.IND.10          .              .            +INF            1.3600      
+CHS.S1.IND.11          .              .            +INF            1.3600      
+CHS.S1.IND.12          .              .            +INF            1.3600      
+CHS.S2.CHN.1           .              .            +INF            6.8000      
+CHS.S2.CHN.2           .              .            +INF            6.8000      
+CHS.S2.CHN.3           .              .            +INF            6.8000      
+CHS.S2.CHN.4           .              .            +INF            6.8000      
+CHS.S2.CHN.5           .              .            +INF            6.8000      
+CHS.S2.CHN.6           .              .            +INF            6.8000      
+CHS.S2.CHN.7           .              .            +INF            6.8000      
+CHS.S2.CHN.8           .              .            +INF            6.8000      
+CHS.S2.CHN.9           .              .            +INF            6.8000      
+CHS.S2.CHN.10          .              .            +INF            6.8000      
+CHS.S2.CHN.11          .              .            +INF            6.8000      
+CHS.S2.CHN.12          .              .            +INF            6.8000      
+CHS.S2.IND.1           .           125.0000        +INF             .          
+CHS.S2.IND.2           .           125.0000        +INF             .          
+CHS.S2.IND.3           .           125.0000        +INF             .          
+CHS.S2.IND.4           .           125.0000        +INF             .          
+CHS.S2.IND.5           .           125.0000        +INF             .          
+CHS.S2.IND.6           .           125.0000        +INF             .          
+CHS.S2.IND.7           .           125.0000        +INF             .          
+CHS.S2.IND.8           .           125.0000        +INF             .          
+CHS.S2.IND.9           .           125.0000        +INF             .          
+CHS.S2.IND.10          .           125.0000        +INF             .          
+CHS.S2.IND.11          .           125.0000        +INF             .          
+CHS.S2.IND.12          .           125.0000        +INF             .          
+
+---- VAR I  Inventory
+
+              LOWER          LEVEL          UPPER         MARGINAL
+
+CHN.1           .              .            +INF      -1.13687E-13      
+CHN.2           .              .            +INF            3.1250      
+CHN.3           .              .            +INF            5.0000      
+CHN.4           .              .            +INF            5.0000      
+CHN.5           .              .            +INF            5.0000      
+CHN.6           .              .            +INF            5.0000      
+CHN.7           .              .            +INF            5.0000      
+CHN.8           .              .            +INF            5.0000      
+CHN.9           .              .            +INF            5.0000      
+CHN.10          .              .            +INF            5.0000      
+CHN.11          .              .            +INF            5.0000      
+CHN.12          .              .            +INF          713.9000      
+IND.1           .            15.0000        +INF             .          
+IND.2           .              .            +INF            3.1250      
+IND.3           .              .            +INF            5.0000      
+IND.4           .              .            +INF            5.0000      
+IND.5           .              .            +INF            5.0000      
+IND.6           .              .            +INF            5.0000      
+IND.7           .              .            +INF            5.0000      
+IND.8           .              .            +INF            5.0000      
+IND.9           .              .            +INF            5.0000      
+IND.10          .              .            +INF            5.0000      
+IND.11          .              .            +INF            5.0000      
+IND.12          .              .            +INF          811.2000      
+
+---- VAR B  Unmet demand
+
+               LOWER          LEVEL          UPPER         MARGINAL
+
+EAST.1           .              .            +INF         5005.0000      
+EAST.2           .              .            +INF         5001.8750      
+EAST.3           .              .            +INF         5000.0000      
+EAST.4           .              .            +INF         5000.0000      
+EAST.5           .              .            +INF         5000.0000      
+EAST.6           .              .            +INF         5000.0000      
+EAST.7           .              .            +INF         5000.0000      
+EAST.8           .              .            +INF         5000.0000      
+EAST.9           .              .            +INF         5000.0000      
+EAST.10          .              .            +INF         5000.0000      
+EAST.11          .              .            +INF         5000.0000      
+EAST.12          .              .            +INF         3962.6000      
+WEST.1           .              .            +INF         5005.0000      
+WEST.2           .              .            +INF         5001.8750      
+WEST.3           .              .            +INF         5000.0000      
+WEST.4           .              .            +INF         5000.0000      
+WEST.5           .              .            +INF         5000.0000      
+WEST.6           .              .            +INF         5000.0000      
+WEST.7           .              .            +INF         5000.0000      
+WEST.8           .              .            +INF         5000.0000      
+WEST.9           .              .            +INF         5000.0000      
+WEST.10          .              .            +INF         5000.0000      
+WEST.11          .              .            +INF         5000.0000      
+WEST.12          .              .            +INF         3953.6000      
+
+                           LOWER          LEVEL          UPPER         MARGINAL
+
+---- VAR z                 -INF      7142012.7500        +INF             .          
+
+  z  Total cost
+
+
+**** REPORT SUMMARY :        0     NONOPT
+                             0 INFEASIBLE
+                             0  UNBOUNDED
+GAMS 51.4.0  91cb996b Nov 10, 2025          WEX-WEI x86 64bit/MS Windows - 12/02/25 20:54:49 Page 7
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+E x e c u t i o n
+
+
+----    211 VARIABLE z.L                   =  7142012.750  Total cost
+
+----    211 VARIABLE q.L  Units produced
+
+              1           2           3           4           5           6           7           8           9          10          11          12
+
+CHN     390.000     400.000     425.000     435.000     465.000     495.000     495.000     525.000     505.000     475.000     445.000     425.000
+IND     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000
+
+
+----    211 VARIABLE x.L  Units shipped
+
+                   1           2           3           4           5           6           7           8           9          10          11          12
+
+CHN.EAST     190.000     180.000     185.000     205.000     215.000     225.000     235.000     245.000     230.000     215.000     205.000     195.000
+CHN.WEST     200.000     220.000     240.000     230.000     250.000     270.000     260.000     280.000     275.000     260.000     240.000     230.000
+IND.EAST     110.000     140.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000
+
+
+----    211 VARIABLE I.L  Inventory
+
+              1
+
+IND      15.000
+
+
+----    211 VARIABLE B.L  Unmet demand
+
+                      ( ALL       0.000 )
+
+
+----    211 VARIABLE y.L  Components purchased
+
+INDEX 1 = BAT
+
+                 1           2           3           4           5           6           7           8           9          10          11          12
+
+S1.CHN     300.000     300.000     300.000     300.000     300.000     300.000     300.000     300.000     300.000     300.000     300.000     300.000
+S1.IND      25.000      25.000      25.000      25.000      25.000      25.000      25.000      25.000      25.000      25.000      25.000      25.000
+S2.CHN      90.000     100.000     125.000     135.000     165.000     195.000     195.000     225.000     205.000     175.000     145.000     125.000
+S2.IND     100.000     100.000     100.000     100.000     100.000     100.000     100.000     100.000     100.000     100.000     100.000     100.000
+
+INDEX 1 = MOT
+
+                 1           2           3           4           5           6           7           8           9          10          11          12
+
+S1.CHN                              25.000      35.000      65.000      95.000      95.000     125.000     105.000      75.000      45.000      25.000
+S1.IND     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000
+S2.CHN     390.000     400.000     400.000     400.000     400.000     400.000     400.000     400.000     400.000     400.000     400.000     400.000
+
+INDEX 1 = PCB
+
+                 1           2           3           4           5           6           7           8           9          10          11          12
+
+S1.CHN     180.000     200.000     250.000     270.000     330.000     390.000     390.000     450.000     410.000     350.000     290.000     250.000
+S1.IND     150.000     150.000     150.000     150.000     150.000     150.000     150.000     150.000     150.000     150.000     150.000     150.000
+S2.CHN     600.000     600.000     600.000     600.000     600.000     600.000     600.000     600.000     600.000     600.000     600.000     600.000
+S2.IND     100.000     100.000     100.000     100.000     100.000     100.000     100.000     100.000     100.000     100.000     100.000     100.000
+
+INDEX 1 = CHS
+
+                 1           2           3           4           5           6           7           8           9          10          11          12
+
+S1.CHN     390.000     400.000     425.000     435.000     465.000     495.000     495.000     525.000     505.000     475.000     445.000     425.000
+S2.IND     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000     125.000
+
+
+
+EXECUTION TIME       =        0.078 SECONDS      4 MB  51.4.0 91cb996b WEX-WEI
+
+
+USER: Poonam Kunwar                                  G251128+0003Ac-GEN
+      pkunwar@ncsu.edu                                        CLA114851
+      License for teaching and research at degree granting institutions
+
+
+**** FILE SUMMARY
+
+Input      D:\MEM\Operational Research\PROJECT\FINALPROJECTCODE.gms
+Output     D:\MEM\Operational Research\PROJECT\FINALPROJECTCODE.lst
