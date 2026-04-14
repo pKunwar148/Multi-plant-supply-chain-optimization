@@ -62,10 +62,5 @@ The goal is to find the most cost-effective and feasible production and distribu
 **Course:** ISE 501 – Introduction to Operations Research  
 **Project Title:** Multi-Plant Production and Supply Chain Optimization Under Tariff and Environmental Policies
 
-## Team Members
-- Akhash Karthick Radhakrishnan
-- Anushka Paul
-- Poonam Kunwar
-
 ## Notes
 This project was developed for academic purposes as part of an operations research course and demonstrates the application of linear programming to supply chain optimization under real-world policy and operational constraints.
